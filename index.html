@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>문장 암기 도우미 (개선)</title> <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#007bff">
+
+    <style>
+        /* CSS는 이전과 거의 동일, 네비게이션 부분만 수정됨 */
+        :root {
+            --bg-color: #f4f4f9; --text-color: #333; --card-bg: #ffffff;
+            --border-color: #ddd; --primary-color: #007bff; --primary-text: #ffffff;
+            --danger-color: #dc3545; --secondary-color: #6c757d; --success-color: #28a745;
+        }
+        body.dark-mode {
+            --bg-color: #2c2c2c; --text-color: #f1f1f1; --card-bg: #444;
+            --border-color: #555; --primary-color: #58a6ff; --primary-text: #2c2c2c;
+            --danger-color: #ff7b72; --secondary-color: #aaa; --success-color: #7ee787;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px;
+            display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; box-sizing: border-box;
+        }
+        .container { width: 100%; max-width: 95vw; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .header h1 { font-size: 2em; margin: 0; }
+        .card {
+            background-color: var(--card-bg); border-radius: 8px; border: 1px solid var(--border-color);
+            padding: 25px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        .sync-card { display: flex; gap: 10px; align-items: center; }
+        .sync-card input { flex-grow: 1; }
+        .sync-card button { white-space: nowrap; }
+        .memorizer {
+            text-align: center; min-height: 350px; display: flex; flex-direction: column;
+            justify-content: center; margin-bottom: 20px;
+        }
+        #item-topic {
+            font-size: 1.8em; font-weight: 600; margin-bottom: 20px; color: var(--secondary-color);
+        }
+        #item-english {
+            font-size: 2.2em; line-height: 1.6; margin-bottom: 10px;
+        }
+        #item-korean {
+            font-size: 1.3em; color: var(--primary-color); line-height: 1.5;
+        }
+
+        /* [수정] 네비게이션 & 점프 기능 스타일 */
+        .navigation {
+            display: flex;
+            justify-content: space-between;
+            align-items: center; /* 수직 가운데 정렬 */
+            margin-top: 25px;
+            gap: 10px; /* 요소 사이 간격 */
+        }
+        .nav-button { /* 이전/다음 버튼 크기 고정 */
+            flex-shrink: 0;
+        }
+        .jump-controls { /* 점프 입력칸 + 버튼 묶음 */
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex-grow: 1; /* 남는 공간 차지 */
+            justify-content: center; /* 가운데 정렬 */
+        }
+        #jump-input {
+            width: 60px; /* 입력칸 너비 */
+            padding: 8px;
+            text-align: center;
+        }
+        #item-counter { /* 현재/총 개수 표시 */
+            font-size: 0.9em;
+            color: var(--secondary-color);
+            margin-top: 10px; /* 네비게이션과의 간격 */
+            text-align: center;
+        }
+
+        /* (이하 스타일은 이전과 동일) */
+        .add-form, .bulk-add-form { display: none; flex-direction: column; gap: 15px; margin-top: 20px; }
+        .add-form.active, .bulk-add-form.active { display: flex; }
+        .form-group { display: flex; flex-direction: column; gap: 10px; }
+        .form-group input, .form-group textarea { width: 100%; }
+        .form-actions { display: flex; gap: 10px; justify-content: flex-end; }
+        .bulk-add-form textarea { min-height: 200px; resize: vertical; }
+        .bulk-add-form .instructions { font-size: 0.9em; color: var(--secondary-color); margin: -5px 0 0 0; padding: 10px; background-color: var(--bg-color); border-radius: 5px; }
+        .bulk-options { display: flex; justify-content: space-between; align-items: center; }
+        input[type="text"], input[type="number"], input[type="url"], textarea { width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 5px; background-color: var(--bg-color); color: var(--text-color); box-sizing: border-box; }
+        button { padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: 600; transition: background-color 0.2s, opacity 0.2s; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn { background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color); }
+        .btn:hover { background-color: var(--border-color); }
+        .btn-primary { background-color: var(--primary-color); color: var(--primary-text); border: 1px solid var(--primary-color); }
+        .btn-primary:hover { opacity: 0.8; }
+        .btn-danger { background-color: var(--danger-color); color: #fff; border: 1px solid var(--danger-color); }
+        .btn-danger:hover { opacity: 0.8; }
+        .btn-success { background-color: var(--success-color); color: #fff; border: 1px solid var(--success-color); }
+        .add-controls { display: flex; gap: 10px; margin-bottom: 20px; }
+        .add-controls button { flex: 1; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h1>문장 암기 도우미</h1>
+            <button id="btn-dark-mode" class="btn">🌙 다크 모드</button>
+        </div>
+
+        <div class="card memorizer">
+            <div id="item-topic">로컬 데이터를 불러오는 중...</div>
+            <div id="item-english"></div>
+            <div id="item-korean"></div>
+
+            <div class="navigation">
+                <button id="btn-prev" class="btn nav-button">이전</button>
+                <div class="jump-controls">
+                    <input type="number" id="jump-input" min="1" placeholder="번호">
+                    <button id="btn-jump" class="btn-primary">이동</button>
+                </div>
+                <button id="btn-next" class="btn nav-button">다음</button>
+            </div>
+            <div id="item-counter">0 / 0</div>
+        </div>
+
+        <p style="font-size: 0.9em; text-align: center; color: var(--secondary-color);">
+            (참고: 여기서 삭제해도 Google Drive 원본 파일은 변경되지 않습니다. 다음 '불러오기' 시 다시 나타납니다.)
+        </p>
+        <button id="btn-delete" class="btn-danger" style="width: 100%;">현재 문장 임시 삭제</button>
+
+        <div class="card sync-card" style="margin-top: 20px;">
+            <input type="url" id="gdrive-url-input" placeholder="Google Apps Script 웹 앱 URL을 붙여넣으세요">
+            <button id="btn-gdrive-sync" class="btn-success">🔄 불러오기</button>
+        </div>
+
+
+        <hr style="margin: 20px 0; border-color: var(--border-color);">
+        <h3 style="text-align: center;">로컬에만 임시로 문장 추가하기</h3>
+        <div class="add-controls">
+            <button id="btn-toggle-add" class="btn-primary">➕ 새 문장 추가</button>
+            <button id="btn-toggle-bulk-add" class="btn-primary">🗂️ 한 번에 여러 문장 추가</button>
+        </div>
+        <div class="card add-form" id="add-form"> ... </div>
+        <div class="card bulk-add-form" id="bulk-add-form"> ... </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- 1. DOM 요소 가져오기 ---
+            const itemTopicEl = document.getElementById('item-topic');
+            const itemEnglishEl = document.getElementById('item-english');
+            const itemKoreanEl = document.getElementById('item-korean');
+            const btnPrev = document.getElementById('btn-prev');
+            const btnNext = document.getElementById('btn-next');
+            const btnDelete = document.getElementById('btn-delete');
+            const btnDarkMode = document.getElementById('btn-dark-mode');
+            const gdriveUrlInput = document.getElementById('gdrive-url-input');
+            const btnGdriveSync = document.getElementById('btn-gdrive-sync');
+
+            // [신규] 점프 기능 요소
+            const jumpInput = document.getElementById('jump-input');
+            const btnJump = document.getElementById('btn-jump');
+            const itemCounterEl = document.getElementById('item-counter'); // 카운터 표시 요소
+
+            // (로컬 폼 요소들은 이전과 동일)
+            const btnToggleAdd = document.getElementById('btn-toggle-add');
+            const btnToggleBulkAdd = document.getElementById('btn-toggle-bulk-add');
+            const addControls = document.querySelector('.add-controls');
+            const addForm = document.getElementById('add-form');
+            const btnCancelAdd = document.getElementById('btn-cancel-add');
+            const btnSave = document.getElementById('btn-save');
+            const inputTopic = document.getElementById('input-topic');
+            const inputEnglish = document.getElementById('input-english');
+            const inputKorean = document.getElementById('input-korean');
+            const bulkAddForm = document.getElementById('bulk-add-form');
+            const bulkInputText = document.getElementById('bulk-input-text');
+            const btnBulkSave = document.getElementById('btn-bulk-save');
+            const btnBulkCancel = document.getElementById('btn-bulk-cancel');
+            const checkOverwrite = document.getElementById('check-overwrite');
+
+            // --- 2. 상태 변수 ---
+            let items = [];
+            let currentItemIndex = 0;
+
+            // --- 3. Google Apps Script 함수 ---
+            async function fetchItemsFromAppScript() {
+                const appScriptUrl = gdriveUrlInput.value.trim();
+                if (!appScriptUrl) { alert('Google Apps Script 웹 앱 URL을 입력해주세요.'); return; }
+                if (!appScriptUrl.startsWith("https://script.google.com/")) { alert("올바른 Google Apps Script 웹 앱 URL이 아닌 것 같습니다."); return; }
+
+                btnGdriveSync.disabled = true; btnGdriveSync.textContent = '불러오는 중...';
+                try {
+                    const response = await fetch(appScriptUrl);
+                    if (!response.ok) throw new Error(`HTTP 상태: ${response.status}`);
+                    const textData = await response.text();
+                    if (textData.startsWith("오류:")) throw new Error(textData);
+
+                    const regex = /^(\S+)\s+(.+?)(?:\s*\|\s*(.+))?$/gm;
+                    const newItems = [];
+                    const lines = textData.split('\n');
+                    for (const line of lines) {
+                        if (line.trim() === '') continue;
+                        regex.lastIndex = 0;
+                        const match = regex.exec(line.trim());
+                        if (match) {
+                            newItems.push({
+                                topic: match[1].trim(),
+                                english: match[2].trim(),
+                                korean: match[3] ? match[3].trim() : ""
+                            });
+                        } else {
+                             console.warn("파싱 실패:", line); // 파싱 실패 시 로그 남기기
+                        }
+                    }
+
+                    // [수정] 불러온 데이터가 있을 때만 덮어쓰기 및 인덱스 초기화
+                    if (newItems.length > 0) {
+                        items = newItems;
+                        currentItemIndex = 0; // 새로 불러왔으므로 처음부터 시작
+                        saveItemsToLocal(); // 로컬에 저장
+                        localStorage.setItem('gdriveAppScriptUrl', appScriptUrl); // URL도 저장
+                        alert(`${items.length}개의 문장을 성공적으로 불러왔습니다.`);
+                    } else {
+                        // 불러온 데이터가 없으면 기존 데이터 유지 (혹은 사용자에게 알림)
+                         alert("Google Drive 파일에서 유효한 문장을 찾지 못했습니다. 파일 내용을 확인해주세요.");
+                    }
+                    renderCurrentItem(); // 화면 갱신
+
+                } catch (error) {
+                    console.error('Apps Script 동기화 오류:', error);
+                    alert('데이터를 불러오는 중 오류가 발생했습니다.\n' + error.message);
+                } finally {
+                    btnGdriveSync.disabled = false; btnGdriveSync.textContent = '🔄 불러오기';
+                }
+            }
+
+            // --- 4. 로컬 저장소 및 렌더링 함수 ---
+            function loadItemsFromLocal() {
+                const storedItems = localStorage.getItem('sentences');
+                if (storedItems) items = JSON.parse(storedItems);
+                const storedIndex = localStorage.getItem('currentItemIndex');
+                currentItemIndex = storedIndex ? parseInt(storedIndex, 10) : 0;
+                // 인덱스 유효성 검사
+                if (!items || items.length === 0) {
+                    currentItemIndex = 0;
+                    items = []; // items가 null이나 undefined가 되지 않도록 초기화
+                } else if (currentItemIndex < 0 || currentItemIndex >= items.length) {
+                    currentItemIndex = 0; // 범위를 벗어나면 0으로
+                }
+            }
+            function saveItemsToLocal() {
+                localStorage.setItem('sentences', JSON.stringify(items));
+                localStorage.setItem('currentItemIndex', currentItemIndex);
+            }
+            function isItemDuplicate(english) {
+                 // items 배열이 비어있지 않은지 먼저 확인
+                return items && items.length > 0 && items.some(item => item.english.trim() === english.trim());
+            }
+
+            // [수정] 렌더링 함수 - 카운터 업데이트 및 점프 입력 최대값 설정 포함
+            function renderCurrentItem() {
+                const totalItems = items ? items.length : 0; // items가 null일 경우 대비
+
+                if (totalItems === 0) {
+                    itemTopicEl.textContent = 'Apps Script URL을 입력하고 동기화 해주세요.';
+                    itemEnglishEl.textContent = '또는 아래의 로컬 추가 버튼을 사용하세요.';
+                    itemKoreanEl.textContent = '';
+                    itemCounterEl.textContent = '0 / 0'; // 카운터 초기화
+                    jumpInput.max = "1"; // 최대값 기본 설정
+                    jumpInput.value = ""; // 입력값 초기화
+                    btnPrev.disabled = true; btnNext.disabled = true; btnDelete.disabled = true; btnJump.disabled = true; jumpInput.disabled = true;
+                    return;
+                }
+
+                // 인덱스가 유효한지 다시 확인 (삭제 등으로 인해 변경될 수 있음)
+                if (currentItemIndex < 0 || currentItemIndex >= totalItems) {
+                    currentItemIndex = 0;
+                }
+
+                btnPrev.disabled = false; btnNext.disabled = false; btnDelete.disabled = false; btnJump.disabled = false; jumpInput.disabled = false;
+
+                const item = items[currentItemIndex];
+                itemTopicEl.textContent = `(${item.topic})`;
+                itemEnglishEl.textContent = item.english;
+                itemKoreanEl.textContent = item.korean || "";
+
+                // 카운터 업데이트 (현재 번호는 index + 1)
+                itemCounterEl.textContent = `${currentItemIndex + 1} / ${totalItems}`;
+                // 점프 입력칸 최대값 설정
+                jumpInput.max = totalItems.toString();
+                 // 현재 번호를 점프 입력칸에 표시 (선택사항)
+                // jumpInput.value = (currentItemIndex + 1).toString();
+            }
+
+            // [신규] 점프 기능 함수
+            function jumpToItem() {
+                const targetIndex = parseInt(jumpInput.value, 10) - 1; // 입력값은 1부터 시작, 인덱스는 0부터
+                const totalItems = items.length;
+
+                if (!isNaN(targetIndex) && targetIndex >= 0 && targetIndex < totalItems) {
+                    currentItemIndex = targetIndex;
+                    saveItemsToLocal();
+                    renderCurrentItem();
+                } else {
+                    alert(`1부터 ${totalItems} 사이의 번호를 입력해주세요.`);
+                    jumpInput.value = (currentItemIndex + 1).toString(); // 잘못된 입력 시 현재 번호로 리셋
+                }
+            }
+
+
+            function showForm(formToShow) {
+                // 이 함수는 로컬 추가 폼에만 관련되므로 수정 없음
+                addForm.classList.remove('active'); bulkAddForm.classList.remove('active');
+                if (formToShow) {
+                    formToShow.classList.add('active'); addControls.style.display = 'none';
+                } else {
+                    addControls.style.display = 'flex';
+                }
+            }
+            function clearAddForm() { inputTopic.value = ''; inputEnglish.value = ''; inputKorean.value = ''; }
+            function clearBulkAddForm() { bulkInputText.value = ''; checkOverwrite.checked = false; }
+
+            // --- 5. 다크 모드 관리 ---
+            function setDarkMode(isDark) {
+                if (isDark) {
+                    document.body.classList.add('dark-mode'); btnDarkMode.textContent = '☀️ 라이트 모드';
+                    localStorage.setItem('darkMode', 'enabled');
+                } else {
+                    document.body.classList.remove('dark-mode'); btnDarkMode.textContent = '🌙 다크 모드';
+                    localStorage.setItem('darkMode', 'disabled');
+                }
+            }
+
+            // --- 6. 이벤트 리스너 ---
+            btnGdriveSync.addEventListener('click', fetchItemsFromAppScript);
+            btnNext.addEventListener('click', () => {
+                if (items && items.length > 0) { currentItemIndex = (currentItemIndex + 1) % items.length; saveItemsToLocal(); renderCurrentItem(); }
+            });
+            btnPrev.addEventListener('click', () => {
+                if (items && items.length > 0) { currentItemIndex = (currentItemIndex - 1 + items.length) % items.length; saveItemsToLocal(); renderCurrentItem(); }
+            });
+            btnDelete.addEventListener('click', () => {
+                if (!items || items.length === 0) return;
+                const item = items[currentItemIndex];
+                if (confirm(`[${item.english}]\n이 문장을 임시로 삭제하시겠습니까?`)) {
+                    items.splice(currentItemIndex, 1);
+                    // 삭제 후 인덱스 조정
+                    if (currentItemIndex >= items.length) {
+                        currentItemIndex = Math.max(0, items.length - 1); // 마지막 요소 삭제 시 인덱스 조정
+                    }
+                    saveItemsToLocal();
+                    renderCurrentItem(); // 삭제 후 화면 바로 갱신
+                }
+            });
+            btnDarkMode.addEventListener('click', () => { setDarkMode(!document.body.classList.contains('dark-mode')); });
+
+            // [신규] 점프 버튼 이벤트 리스너
+            btnJump.addEventListener('click', jumpToItem);
+            // [신규] 점프 입력칸에서 Enter 키 눌렀을 때도 점프 실행
+            jumpInput.addEventListener('keypress', (event) => {
+                if (event.key === 'Enter') {
+                    jumpToItem();
+                }
+            });
+
+            // (로컬 추가 기능 리스너는 이전과 동일)
+            btnToggleAdd.addEventListener('click', () => showForm(addForm));
+            btnCancelAdd.addEventListener('click', () => { clearAddForm(); showForm(null); });
+            btnSave.addEventListener('click', () => {
+                const topic = inputTopic.value.trim(); const english = inputEnglish.value.trim(); const korean = inputKorean.value.trim();
+                if (!topic || !english) { alert('주제와 영어 문장은 필수입니다.'); return; }
+                if (isItemDuplicate(english)) { alert(`[${english}]\n이미 등록된 문장입니다.`); return; }
+                items.push({ topic, english, korean }); currentItemIndex = items.length - 1;
+                saveItemsToLocal(); renderCurrentItem(); clearAddForm(); showForm(null);
+            });
+            btnToggleBulkAdd.addEventListener('click', () => showForm(bulkAddForm));
+            btnBulkCancel.addEventListener('click', () => { clearBulkAddForm(); showForm(null); });
+            btnBulkSave.addEventListener('click', () => {
+                const rawText = bulkInputText.value.trim(); if (!rawText) { alert('추가할 문장을 입력해주세요.'); return; }
+                const regex = /^(\S+)\s+(.+?)(?:\s*\|\s*(.+))?$/gm;
+                const newItems = []; let parseErrors = 0; const lines = rawText.split('\n');
+                for (const line of lines) {
+                    if (line.trim() === '') continue;
+                    regex.lastIndex = 0; match = regex.exec(line.trim());
+                    if (match) newItems.push({ topic: match[1].trim(), english: match[2].trim(), korean: match[3] ? match[3].trim() : "" });
+                    else { console.warn('형식 오류:', line); parseErrors++; }
+                }
+                if (newItems.length === 0 && parseErrors > 0) { alert('형식에 맞는 문장을 찾지 못했습니다.'); return; }
+                let addedCount = 0; let skippedCount = 0;
+                if (checkOverwrite.checked) {
+                    const uniqueItems = []; const seen = new Set();
+                    for (const item of newItems) {
+                        const key = item.english.trim();
+                        if (!seen.has(key)) { uniqueItems.push(item); seen.add(key); addedCount++; } else skippedCount++;
+                    }
+                    items = uniqueItems; currentItemIndex = 0;
+                } else {
+                    const itemsToAdd = [];
+                    for (const item of newItems) {
+                        if (isItemDuplicate(item.english) || itemsToAdd.some(b => b.english === item.english)) skippedCount++;
+                        else { itemsToAdd.push(item); addedCount++; }
+                    }
+                    items = items.concat(itemsToAdd);
+                }
+                saveItemsToLocal(); renderCurrentItem();
+                let msg = `총 ${addedCount}개의 문장을 (로컬에) 저장했습니다.`;
+                if (skippedCount > 0) msg += `\n(${skippedCount}개 중복 건너뜀)`;
+                if (parseErrors > 0) msg += `\n(${parseErrors}개 형식 오류 건너뜀)`;
+                alert(msg); clearBulkAddForm(); showForm(null);
+            });
+
+            // --- 7. 앱 초기화 ---
+            function initialize() {
+                setDarkMode(localStorage.getItem('darkMode') === 'enabled');
+                const savedUrl = localStorage.getItem('gdriveAppScriptUrl');
+                if (savedUrl) {
+                    gdriveUrlInput.value = savedUrl;
+                }
+                // [수정] URL 유무와 관계없이 로컬 데이터 먼저 로드
+                loadItemsFromLocal();
+                renderCurrentItem();
+
+                // [선택사항] 만약 URL이 있고, 로컬 데이터가 비어있다면 자동으로 fetch 실행
+                // if (savedUrl && (!items || items.length === 0)) {
+                //     fetchItemsFromAppScript();
+                // }
+            }
+            initialize();
+        });
+        // --- 앱 로직 끝 ---
+    </script>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+          window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js').then(registration => {
+              console.log('SW registered: ', registration);
+            }).catch(registrationError => {
+              console.log('SW registration failed: ', registrationError);
+            });
+          });
+        }
+    </script>
+
+</body>
+</html>
